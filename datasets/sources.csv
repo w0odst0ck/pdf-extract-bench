@@ -1,6 +1,6 @@
-filename,category,pages,pdfplumber_chars,notes,source
-GB_4599-2024.pdf,chinese_standard,59,45680,"中文国标 前照灯配光性能, 含表格",BriefNexus (symlink)
-GB_4785-2019.pdf,chinese_standard,82,148510,"中文国标 信号灯, 长篇",BriefNexus (symlink)
-GB_T_34446-2017.pdf,scanned,12,0,"扫描件, 0字符可提取",BriefNexus (symlink)
-darkdriving_2603.18067.pdf,english_academic,8,37205,"ICRA 2026 纯英文 双栏",arXiv download
-hawkdrive_2404.04653.pdf,english_academic,6,28234,"IEEE IV 2024 纯英文 双栏",arXiv download
+filename,category,pages,parameters_present,table_types,notes,source
+GB_4599-2024.pdf,core,59,"远光最大照度 近光截止线角度 配光分布区域","配光曲线表 光度参数表","前照灯配光性能 主测试用例 文本+表格",BriefNexus
+GB_13954-2009.pdf,core,18,"光度参数 色度坐标 闪光频率","光度参数表 色度表","特种车辆标志灯 不同表结构",BriefNexus
+GB_19152-2025.pdf,core,55,"配光曲线 照度阈值 光色参数","配光曲线表 光度参数表","摩托车照明装置 类似表结构",BriefNexus
+GB_4785-2019.pdf,edge,82,"光度参数 信号灯色度","光度参数表","编码异常PDF 所有提取器乱码 考察容错",BriefNexus
+GB_23826-2025.pdf,edge,35,"—","—","文字+扫描混合 30MB大文件 大部分为图像",BriefNexus

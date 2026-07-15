@@ -1,91 +1,89 @@
-# PDF Text Extraction Benchmark
+# PDF → Markdown → Parameter Extraction Benchmark
 
-一份轻量、可复用的 PDF 文本提取器对比基准，覆盖中文国标、英文学术论文和扫描件场景。
+一份聚焦 **PDF→Markdown 表格保真度** 的对比基准。  
+目的不是"谁提取的字符多"，而是"谁能把配光曲线表完整带到 LLM 面前"。
 
 ---
 
 ## 定位
 
-不是论文级评测。目标是快速回答一个实际问题：
+实际场景：
 
-> **我的文档类型下，哪个提取器又快又准？**
+```
+PDF (配光曲线表) → Markdown (Pipe Table) → LLM → {照度值, 光型参数, ...}
+```
 
-benchmark 设计为可复用——换一批 PDF 即可跑其他项目的场景。
+benchmark 设计为可复用——换一批学术论文、财务报表、技术规格书的 PDF，就能测自己场景下的参数提取管线。
 
 ---
 
 ## 测试集
 
-| # | 文件 | 类型 | 页数 | 提取字符（pdfplumber） | 来源 |
-|---|------|------|------|----------------------|------|
-| 1 | `GB_4599-2024.pdf` | 中文国标（配光曲线表） | 59 | ~46KB | BriefNexus 标准库 |
-| 2 | `GB_4785-2019.pdf` | 中文国标（长篇） | 82 | ~148KB | BriefNexus 标准库 |
-| 3 | `GB_T_34446-2017.pdf` | **扫描件**（0 字符可提取） | 12 | 0 | BriefNexus 标准库 |
-| 4 | `darkdriving_2603.18067.pdf` | 英文学术论文（双栏） | 8 | ~37KB | arXiv |
-| 5 | `hawkdrive_2404.04653.pdf` | 英文学术论文（双栏） | 6 | ~28KB | arXiv |
-
-> `sources.csv` 记录了每份 PDF 的完整元数据。
+| # | 文件 | 类型 | 页数 | 含参类型 | 说明 |
+|---|------|------|------|---------|------|
+| 1 | `GB_4599-2024.pdf` | 前照灯配光 | 59 | 远光/近光最大照度、配光分布 | 文本+表格，主测试用例 |
+| 2 | `GB_13954-2009.pdf` | 特种车辆警示灯 | 18 | 光度参数、色度坐标 | 文本+表格，不同表结构 |
+| 3 | `GB_19152-2025.pdf` | 摩托车照明 | 55 | 配光曲线、照度阈值 | 文本+表格，类似结构 |
+| 4 | `GB_4785-2019.pdf` | 信号灯安装 | 82 | 光度参数 | **编码异常**，考察容错 |
+| 5 | `GB_23826-2025.pdf` | — | 35 | — | **文字+扫描混合**，考察兜底 |
 
 ---
 
-## 对比提取器
+## 对比工具
 
-| 提取器 | 策略 | 安装 | 许可 | 备注 |
-|--------|------|------|------|------|
-| **PyMuPDF (fitz)** | 通用首选 | `pip install PyMuPDF` | AGPL | C 引擎 |
-| **pdfplumber** | 表格专项 | ✅ 已有 | MIT | 纯 Python |
-| **pdfminer.six** | 高可配置 | ✅ 已有 | MIT | 最稳定 |
-| **pypdfium2** | C 引擎（PDFium） | ✅ 已有 | Apache 2.0 | Chromium 内核 |
+| 工具 | 策略 | 安装 | 许可 | Markdown 输出 | 表格支持 |
+|------|------|------|------|-------------|---------|
+| **pymupdf4llm** | PyMuPDF 官方 PDF→Markdown | `pip install pymupdf4llm` | AGPL | ✅ 原生 Pipe Table | ✅ 线条表格 |
+| **pdfplumber** | 布局感知表格提取 + 手拼 | ✅ 已有 | MIT | ⚠️ 需序列化 | ✅ `extract_tables()` |
 
-> 扫描件（#3）各提取器将返回 0 字符，benchmark 仅记录这一事实，不做 OCR 评估。
+> Marker 等含 OCR 的 PDF→Markdown 工具因安装较重，不纳入主对比，详见 REPORT 附录。
 
 ---
 
 ## 评估维度
 
-| 维度 | 测量方式 |
-|------|---------|
-| **字符召回率** | 提取字符数（对各提取器横向对比） |
-| **中文正确性** | 手动抽查 5 处字段是否乱码 |
-| **表格结构** | GB 4599 配光曲线表能否正确解析为行列 |
-| **阅读顺序** | 双栏/多节文档是否左右栏交错 |
-| **耗时** | `time.perf_counter()` 每文件累计处理时间 |
-| **峰值内存** | `/usr/bin/time -v` 追踪 |
+| 维度 | 测量方式 | 权重 |
+|------|---------|------|
+| **表格保真度** | 配光曲线表在 Markdown 中是否保留行列结构 | ★★★★★ |
+| **参数可提取率** | 用 `validation_prompt.md` 喂 LLM，提取 3 个核心参数的正确率 | ★★★★★ |
+| **中文正确率** | 抽查 5 处参数值（如"照度≥0.3 lx"）是否乱码 | ★★★★ |
+| **阅读顺序** | 多栏排版是否交错 | ★★★ |
+| **耗时** | `time.perf_counter()` 每文件处理时间 | ★★ |
 
 ---
 
-## 使用方式
+## 验证方式
 
 ```bash
-# 1. 安装缺失依赖
-pip install PyMuPDF
-
-# 2. 运行 benchmark
-cd /home/zzz/workspace/projects/pdf-extraction-benchmark
+# 1. 生成 Markdown
 python3 benchmark.py
 
-# 3. 产出在 outputs/{extractor_name}/{pdf_basename}.txt
-# 例如: outputs/pymupdf/GB_4599-2024.txt
+# 2. 用 validation_prompt.md 喂 LLM 提取参数
+# 3. 人工比对提取值与标准原文
 ```
+
+详见 `validation_prompt.md`。
 
 ---
 
-## 产出物
+## 项目结构
 
 ```
-outputs/
-├── pymupdf/
-│   ├── GB_4599-2024.txt
-│   ├── GB_4785-2019.txt
-│   ├── darkdriving_2603.18067.txt
-│   └── hawkdrive_2404.04653.txt
-├── pdfplumber/
-│   └── ... (同上)
-├── pdfminer/
-│   └── ... (同上)
-├── pypdfium2/
-│   └── ... (同上)
-└── results.json             ← 汇总表格 + 指标
+pdf-extract-bench/
+├── README.md
+├── .gitignore
+├── validation_prompt.md          ← LLM 参数提取验证 prompt
+├── datasets/
+│   ├── sources.csv                ← 元数据（含 parameters_present / table_types）
+│   ├── GB_4599-2024.pdf           ← 🔗 core: 前照灯配光
+│   ├── GB_13954-2009.pdf          ← 🔗 core: 警示灯光度
+│   ├── GB_19152-2025.pdf          ← 🔗 core: 摩托车配光
+│   ├── GB_4785-2019.pdf           ← 🔗 edge: 编码异常
+│   └── GB_23826-2025.pdf          ← 🔗 edge: 文字+扫描混合
+├── markdown_outputs/              ← Markdown 产出（.gitkeep 占位）
+├── extractors.py                  ← pymupdf4llm + pdfplumber 封装
+├── benchmark.py                   ← 统一入口
+└── REPORT.md                      ← 博客体报告（最终产出）
 ```
 
 ---
@@ -93,30 +91,9 @@ outputs/
 ## 复用指南
 
 ```bash
-# 换一份你自己的 PDF 测试集
-cp -r ~/your-project/pdfs ./datasets/
-# 更新 datasets/sources.csv
+# 换自己的 PDF 测试集
+cp ~/your-docs/*.pdf ./datasets/
+# 更新 datasets/sources.csv 的 parameters_present / table_types
+# 更新 validation_prompt.md 的目标参数
 # 跑 benchmark.py
-```
-
----
-
-## 项目结构
-
-```
-pdf-extraction-benchmark/
-├── README.md
-├── sources.csv → datasets/     ← 测试集清单（顶层快捷入口）
-├── .gitignore                  ← 大文件/产出物排除追踪
-├── datasets/
-│   ├── sources.csv              ← 元数据（类别/页数/pdfplumber字符数/备注）
-│   ├── GB_4599-2024.pdf         ← 🔗 中文国标 59页 含表格
-│   ├── GB_4785-2019.pdf         ← 🔗 中文国标 82页 长篇
-│   ├── GB_T_34446-2017.pdf      ← 🔗 扫描件 12页 0字符
-│   ├── darkdriving_2603.18067.pdf ← 📥 英文论文 8页 双栏
-│   └── hawkdrive_2404.04653.pdf   ← 📥 英文论文 6页 双栏
-├── outputs/                     ← 提取结果（.gitkeep 占位，不被追踪）
-├── extractors.py                ← 提取器封装
-├── benchmark.py                 ← 统一入口
-└── REPORT.md                    ← 博客体报告（最终产出）
 ```
