@@ -1,0 +1,13 @@
+# Large files / downloaded PDFs (not symlinks)
+datasets/darkdriving_2603.18067.pdf
+datasets/hawkdrive_2404.04653.pdf
+
+# Benchmark outputs (only .gitkeep tracked)
+outputs/*
+!outputs/.gitkeep
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+.env
