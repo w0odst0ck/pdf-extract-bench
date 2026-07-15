@@ -1,89 +1,78 @@
-# PDF → Markdown → Parameter Extraction Benchmark
+# Parameter Page Locator
 
-## 定位
+在 108 个国标 PDF 中自动定位参数所在页，人工精确提取数值。
 
-覆盖 **108 个国标 PDF** 的完整参数提取管线测试。
+---
 
-一条 pipeline，两条技术路线：
+## 目的
+
+**定位优先于提取。**  
+精确的参数提取需要人工确认，但定位参数在哪一页可以自动化——把人从"翻 59 页找参数"降到"看 5 页参数页"。
+
+## 适用场景
+
+所有需从标准 PDF 提取配光曲线、光度参数、色度坐标等表格数据的场景。
+
+---
+
+## 路线
 
 ```
-            ┌─ 文字层 PDF ──→ pymupdf4llm / pdfplumber ──→ Markdown ──┐
-108 个 PDF ─┤                                                        ├──→ LLM → 参数提取
-            └─ 扫描件 PDF ──→ OCRmyPDF → 补文字层 → 同上提取器 ──→ Markdown ┘
+                ┌─ 文字层 PDF ──→ 全文提取 → 关键词匹配 → 标记参数页
+108 个 PDF ────┤
+                └─ 扫描件 PDF ──→ OCR → 文本 → 同一套关键词 → 标记参数页
 ```
 
-benchmark 回答的核心问题：
-
-> **给定一份 PDF，我应该走哪条路线，才能让 LLM 正确提取出配光曲线参数？**
+不追求 OCR 能精确提取数值，只要求关键词+页码定位准。
 
 ---
 
-## 技术路线
+## 测试集
 
-### Route A：文本提取（覆盖 51 个 PDF，47%）
+7 份 PDF 覆盖三类场景：
 
-| 工具 | 策略 | 安装 | Markdown |
-|------|------|------|----------|
-| **pymupdf4llm** | PDF→Markdown 一步到位 | `pip install pymupdf4llm` | ✅ 原生 Pipe Table |
-| **pdfplumber** | 布局感知提取+手拼序列化 | ✅ 已有 | ⚠️ 需手拼 |
-
-适用于有文字层的 PDF。其中：
-- **15-20 个** 全文可提取（如 GB 4599 每页连续中文）
-- **30+ 个** 只有封面/目次页有文字（正文扫描图）
-
-### Route B：OCR（覆盖 57 个 PDF，53%）
-
-| 工具 | 策略 | 安装 |
-|------|------|------|
-| **OCRmyPDF + Tesseract (chi_sim)** | 扫描件→文字层→再走 Route A | `apt install tesseract-ocr tesseract-ocr-chi-sim` + `pip install ocrmypdf` |
-| Marker（备用） | 含 OCR 的 PDF→Markdown | `pip install marker-pdf`（较重，PyTorch） |
-
-扫描件类型：大部分为老版标准、已废止标准的扫描存档、部分新版标准的配光曲线图页。
+| 文件 | 类型 | 页数 | 路线 | 参数类型 |
+|------|------|------|------|---------|
+| `GB_4599-2024.pdf` | 前照灯配光 | 59 | text | 配光曲线、照度值 |
+| `GB_13954-2009.pdf` | 警示灯光度 | 18 | text | 光度参数、色度 |
+| `GB_19152-2025.pdf` | 摩托车照明 | 55 | text | 配光曲线 |
+| `GB_4785-2019.pdf` | 信号灯安装 | 82 | text | 编码异常PDF |
+| `GB_23826-2025.pdf` | 混合 | 35 | hybrid | 文字+扫描混合 |
+| `GB_T_5700-2023.pdf` | 照明测量 | 52 | ocr | 测量数据表 |
+| `GB_T_7922-2023.pdf` | 光色测量 | 17 | ocr | 色度坐标表 |
 
 ---
 
-## 测试集（7 份 PDF）
+## 产出
 
-| # | 文件 | 路线 | 类型 | 页数 | 说明 |
-|---|------|------|------|------|------|
-| 1 | `GB_4599-2024.pdf` | text | 前照灯配光 | 59 | 文本层完整，含配光曲线表 |
-| 2 | `GB_13954-2009.pdf` | text | 警示灯光度 | 18 | 文本层完整，光度参数表 |
-| 3 | `GB_19152-2025.pdf` | text | 摩托车照明 | 55 | 文本层稀疏，文字+表格混排 |
-| 4 | `GB_4785-2019.pdf` | text | 信号灯安装 | 82 | **编码异常**，所有提取器乱码 |
-| 5 | `GB_23826-2025.pdf` | both | 文字+扫描混合 | 35 | 30MB，大部分为图像，测试兜底 |
-| 6 | `GB_T_5700-2023.pdf` | ocr | 照明测量方法 | 52 | **纯扫描件**，25MB，含测量数据表 |
-| 7 | `GB_T_7922-2023.pdf` | ocr | 光源光色测量 | 17 | **纯扫描件**，4MB，含色度坐标表 |
-
----
-
-## 评估维度
-
-| 维度 | 测量方式 | Route A | Route B |
-|------|---------|---------|---------|
-| **表格保真度** | 配光曲线表在 Markdown 中是否保留行列 | ✅ | ✅ |
-| **参数可提取率** | 用 validation_prompt 喂 LLM，提取 3 个参数的正确率 | ✅ | ✅ |
-| **中文正确率** | 抽查 5 处参数值是否乱码 | ✅ | ✅ |
-| **阅读顺序** | 多栏排版是否交错 | ✅ | ✅ |
-| **耗时** | `time.perf_counter()` | ✅ | ✅ |
-| **文字层可用率** | 提取字符数 / PDF 实际字符数 | ✅ | — |
-| **OCR 恢复率** | OCR 后新增了多少可用文本 | — | ✅ |
-
----
-
-## 验证方式
-
-```bash
-# Route A：文本提取
-python3 benchmark.py --route text
-
-# Route B：OCR 提取（先补 OCR 层）
-python3 benchmark.py --route ocr
-
-# 全量
-python3 benchmark.py --route all
+```json
+{
+  "filename": "GB_4599-2024.pdf",
+  "total_pages": 59,
+  "param_pages": 5,
+  "need_review": 5,
+  "pages": [
+    {"page": 13, "title": "近光配光性能要求", "confidence": "high"},
+    {"page": 15, "title": "近光生产一致性要求", "confidence": "high"},
+    {"page": 17, "title": "远光配光性能", "confidence": "high"},
+    {"page": 21, "title": "前雾灯配光性能", "confidence": "high"},
+    {"page": 31, "title": "LED模块光度参数", "confidence": "medium"}
+  ]
+}
 ```
 
-结果以 Markdown 格式输出到 `markdown_outputs/{route}/{tool}/{filename}.md`。
+---
+
+## 未来模型接入
+
+`locator/model_hook.py` 定义了 `PageDetector` 抽象基类。  
+当前实现为规则匹配（关键词+正则），未来可无缝替换为：
+
+- 分类模型（判断"这一页是否有参数表"）
+- 视觉模型（YOLO 检测表格区域）
+- LLM（直接问"这一页在讲什么参数"）
+
+详见 `pipeline.md`。
 
 ---
 
@@ -92,29 +81,21 @@ python3 benchmark.py --route all
 ```
 pdf-extract-bench/
 ├── README.md
+├── pipeline.md                       ← 完整设计文档
 ├── .gitignore
-├── validation_prompt.md          ← LLM 参数提取验证 prompt
 ├── datasets/
-│   ├── sources.csv                ← 含 route/parameters_present/table_types 列
-│   ├── GB_4599-2024.pdf           ← 🔗 text: 前照灯配光      59p
-│   ├── GB_13954-2009.pdf          ← 🔗 text: 警示灯光度      18p
-│   ├── GB_19152-2025.pdf          ← 🔗 text: 摩托车配光      55p
-│   ├── GB_4785-2019.pdf           ← 🔗 text: 编码异常        82p
-│   ├── GB_23826-2025.pdf          ← 🔗 both: 混合           35p
-│   ├── GB_T_5700-2023.pdf         ← 🔗 ocr:  照明测量       52p
-│   └── GB_T_7922-2023.pdf         ← 🔗 ocr:  光色测量       17p
-├── markdown_outputs/
-│   ├── text/                      ← Route A 产出
-│   │   ├── pymupdf4llm/
-│   │   ├── pdfplumber/
-│   │   └── combined/
-│   └── ocr/                       ← Route B 产出
-│       ├── tesseract/
-│       └── combined/
-├── extractors/
+│   ├── sources.csv
+│   ├── GB_4599-2024.pdf              ← 7 个测试 PDF
+│   └── ...
+├── locator/
 │   ├── __init__.py
-│   ├── text.py                    ← pymupdf4llm + pdfplumber
-│   └── ocr.py                     ← OCRmyPDF + Tesseract
-├── benchmark.py                   ← 统一入口，--route 参数
-└── REPORT.md                      ← 博客体报告（最终产出）
+│   ├── patterns.py                   ← 参数规则库
+│   ├── text_detector.py              ← 文字层检测
+│   ├── ocr_detector.py               ← OCR 检测
+│   ├── hybrid_detector.py            ← 混合策略
+│   ├── model_hook.py                 ← 未来模型接口
+│   └── index.py                      ← 汇总产出
+├── cache/                            ← OCR 文本缓存
+└── output/
+    └── index.json                    ← 最终产出
 ```
