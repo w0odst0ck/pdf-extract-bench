@@ -31,11 +31,13 @@ class PdfIndex:
     def summary(self) -> dict:
         if self.total_pages == 0:
             return {"param_pages": 0, "total_pages": 0, "savings_pct": 0}
+        pages = [p.page for p in self.parameter_pages]
         return {
-            "param_pages": len(self.parameter_pages),
+            "param_pages": len(pages),
             "total_pages": self.total_pages,
+            "pages_found": sorted(pages),
             "savings_pct": round(
-                (1 - len(self.parameter_pages) / self.total_pages) * 100, 1
+                (1 - len(pages) / self.total_pages) * 100, 1
             ),
         }
 
