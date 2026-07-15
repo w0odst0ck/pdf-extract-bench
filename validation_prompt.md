@@ -1,6 +1,6 @@
 # 参数提取验证 Prompt
 
-> 用途：验证 pymupdf4llm / pdfplumber 的 Markdown 输出是否能被 LLM 正确提取参数。
+> 用途：验证两条路线（文本提取/OCR）的 Markdown 输出是否能被 LLM 正确提取参数。
 > 方法：将 Markdown 输出贴到此 prompt 下方，LLM 返回结构化结果，人工核对。
 
 ---
@@ -14,13 +14,16 @@
 ```json
 {
   "standard_no": "对应的标准号，如 GB 4599-2024",
+  "extraction_route": "text | ocr",
   "parameters": [
     {
       "name": "参数名称",
       "value": "数值+单位",
-      "condition": "适用的条件，如远光/近光"
+      "condition": "适用的条件，如远光/近光/25℃",
+      "source_page": "提取自第几页（可选）"
     }
-  ]
+  ],
+  "issues": ["提取过程中的问题描述，如表格错位、字符乱码等"]
 }
 ```
 
@@ -29,6 +32,7 @@
 - 参数值请保留原始数值和单位，不要换算
 - 如果某个参数在文本中不存在，返回 null
 - 如果表格与文字描述冲突，以表格数据为准
+- 如果 Markdown 表格结构明显错乱，在 issues 中注明
 
 ## Markdown 内容
 
